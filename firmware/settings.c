@@ -2,7 +2,7 @@
 
 #include <avr/eeprom.h>
 
-#define NUM_REGISTERS 5
+#define NUM_REGISTERS 6
 
 #define EEPROM_SIZE_ATMEGA328 1024  
 
@@ -12,6 +12,13 @@
 #define MASK_KEY      0x00FF
 #define MASK_MOD      0xFF00
 
+#define REGISTER_MAGIC    0x00
+#define REGISTER_VERSION  0x01
+#define REGISTER_CCW      0x02
+#define REGISTER_CW       0x03
+#define REGISTER_BTN      0x04
+#define REGISTER_TYPE     0x05
+
 uint8_t var_size;
 uint8_t buffer_len;
 uint8_t addr_status_buffer;
@@ -19,9 +26,15 @@ uint8_t addr_status_buffer;
 uint16_t settings[NUM_REGISTERS] = {
   MAGIC_CODE,
   VERSION,
-  0x0056, // CCW, no modifiers, Keypad -
-  0x0057, // CW, no modifiers, Keypad +
-  0x0055, // BTN, no modifiers, Keypad =
+  0x00EA, // CCW, no modifiers, Volume Down
+  0x00E9, // CW, no modifiers, Volume Up
+  0x00E2, // BTN, no modifiers, Mute
+  0x0015, // CCW => MM, CW => MM, BTN => MM
+
+  // 0x0056, // CCW, no modifiers, Keypad -
+  // 0x0057, // CW, no modifiers, Keypad +
+  // 0x0055, // BTN, no modifiers, Keypad =
+  // 0x0000, // CCW => KB, CW => KB, BTN => KB
 };
 
 uint16_t _settingsFindNextWriteIndex() { 
@@ -100,7 +113,7 @@ void settingsInit() {
 }
 
 uint8_t settingsGetKeycode(uint8_t reg) {
-  if (reg < REGISTER_CCW || reg > REGISTER_BTN) {
+  if (reg < SETTINGS_CCW || reg > SETTINGS_BTN) {
     return 0;
   }
 
@@ -108,7 +121,7 @@ uint8_t settingsGetKeycode(uint8_t reg) {
 }
 
 uint8_t settingsGetModifiers(uint8_t reg) {
-  if (reg < REGISTER_CCW || reg > REGISTER_BTN) {
+  if (reg < SETTINGS_CCW || reg > SETTINGS_BTN) {
     return 0;
   }
 
@@ -116,7 +129,7 @@ uint8_t settingsGetModifiers(uint8_t reg) {
 }
 
 void settingsSetKeycode(uint8_t reg, uint8_t keycode) {
-  if (reg < REGISTER_CCW || reg > REGISTER_BTN) {
+  if (reg < SETTINGS_CCW || reg > SETTINGS_BTN) {
     return;
   }
 
@@ -127,7 +140,7 @@ void settingsSetKeycode(uint8_t reg, uint8_t keycode) {
 }
 
 void settingsSetModifiers(uint8_t reg, uint8_t modifiers) {
-  if (reg < REGISTER_CCW || reg > REGISTER_BTN) {
+  if (reg < SETTINGS_CCW || reg > SETTINGS_BTN) {
     return;
   }
 
@@ -135,4 +148,50 @@ void settingsSetModifiers(uint8_t reg, uint8_t modifiers) {
   settings[reg] |= (modifiers << 8);
 
   _settingsSave();
+}
+
+uint8_t settingsGetType(uint8_t reg) {
+  if (reg < SETTINGS_CCW || reg > SETTINGS_BTN) {
+    return 0;
+  }
+
+  uint16_t val = settings[REGISTER_TYPE];
+
+  if (reg == SETTINGS_CCW) {
+    val &= 0x03;
+    return val;
+  }
+
+  if (reg == SETTINGS_CW) {
+    val &= 0x0C;
+    return val >> 2;
+  }
+
+  if (reg == SETTINGS_BTN) {
+    val &= 0x30;
+    return val >> 4;
+  }
+
+  return 0;
+}
+
+void settingsSetType(uint8_t reg, uint8_t type) {
+  if (reg < SETTINGS_CCW || reg > SETTINGS_BTN) {
+    return;
+  }
+
+  if (reg == SETTINGS_CCW) {
+    settings[REGISTER_TYPE] &= 0x3C;
+    settings[REGISTER_TYPE] |= (type & 0x03);
+  } 
+  
+  if (reg == SETTINGS_CW) {
+    settings[REGISTER_TYPE] &= 0x33;
+    settings[REGISTER_TYPE] |= ((type & 0x03) << 2);
+  } 
+
+  if (reg == SETTINGS_BTN) {
+    settings[REGISTER_TYPE] &= 0x0F;
+    settings[REGISTER_TYPE] |= ((type & 0x03) << 4);
+  }
 }

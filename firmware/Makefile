@@ -2,13 +2,17 @@
 CC = avr-gcc
 OBJCOPY = avr-objcopy
 DUDE = avrdude
+SIZE = avr-size
 
-CFLAGS = -Wall -Os -Iusbdrv -I. -mmcu=atmega328p -DF_CPU=16000000 -DDEBUG_LEVEL=0
+DEVICE = atmega328p
+
+CFLAGS = -Wall -Os -Iusbdrv -I. -mmcu=$(DEVICE) -DF_CPU=16000000 -DDEBUG_LEVEL=0
 OBJFLAGS = -j .text -j .data -O ihex
-DUDEFLAGS = -p atmega328p -c arduino -P COM7 -b 57600 -v
+DUDEFLAGS = -p $(DEVICE) -c arduino -P COM7 -b 57600 -v
+SIZEFLAGS = -C --mcu=$(DEVICE)
 
 # Object files for the firmware
-OBJECTS = usbdrv/usbdrv.o usbdrv/oddebug.o usbdrv/usbdrvasm.o main.o settings.o encoder.o
+OBJECTS = usbdrv/usbdrv.o usbdrv/oddebug.o usbdrv/usbdrvasm.o main.o settings.o encoder.o usb.o
 
 # By default, build the firmware and command-line client, but do not flash
 all: main.hex
@@ -22,7 +26,7 @@ eeprom: main.eep
 
 # Housekeeping if you want it
 clean:
-	$(RM) *.o *.hex *.elf
+	$(RM) *.o *.hex *.elf usbdrv/*.o
 
 # From .elf file to .hex
 %.hex: %.elf
@@ -31,6 +35,7 @@ clean:
 # main.elf requires additional objects to the firmware, not just main.o
 main.elf: $(OBJECTS)
 	$(CC) $(CFLAGS) $(OBJECTS) -o $@
+	$(SIZE) $(SIZEFLAGS) main.elf
 
 # Without this dependance, .o files will not be recompiled if you change 
 # the config! I spent a few hours debugging because of this...

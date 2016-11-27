@@ -6,6 +6,13 @@
 #include "encoder.h"
 #include "settings.h"
 #include "usbdrv.h"
+#include "oddebug.h"
+
+#define DBG_INIT        0x00
+#define DBG_PRE_MAIN    0x01
+#define DBG_SEND_IRQ    0xF0
+#define DBG_BTN_STATE   0xF1
+#define DBG_ENC_STATE   0xF2
 
 // From Frank Zhao's USB Business Card project
 // http://www.frank-zhao.com/cache/usbbusinesscard_details.php
@@ -70,13 +77,13 @@ usbMsgLen_t usbFunctionSetup(uchar data[8]) {
         switch(rq->bRequest) {
             case USBRQ_HID_GET_REPORT: 
                 // send "no keys pressed" if asked here
-                buildReport(0, 0);
-                usbMsgPtr = (void *)&keyboard_report;
+                buildReport(0x00, 0x00);
+                usbMsgPtr = (usbMsgPtr_t)&keyboard_report;
                 return sizeof(keyboard_report);
 
             case USBRQ_HID_GET_IDLE: 
                 // send idle rate to PC as required by spec
-                usbMsgPtr = &idle_rate;
+                usbMsgPtr = (usbMsgPtr_t)&idle_rate;
                 return 1;
 
             case USBRQ_HID_SET_IDLE: 
@@ -95,11 +102,18 @@ int main() {
     // PB0 as output for LED
     DDRB  = 1 << PB0;
 
+    settingsInit();
+    encInit();
+
     // Set report initialy to 0    
-    buildReport(0, 0);
+    buildReport(0x00, 0x00);
     
     // enable 1s watchdog timer
     wdt_enable(WDTO_1S); 
+
+    // enable debug
+    odDebugInit();
+    DBG1(DBG_INIT, 0, 0);
 
     usbInit();
     
@@ -115,11 +129,60 @@ int main() {
     
     // Enable interrupts after re-enumeration
     sei(); 
-    
+
+    uint8_t last_btn_state = 0;
+    uint8_t last_enc_state = 0;
+    uint8_t btn_state = 0;
+    uint8_t enc_state = 0;
+    uint8_t send_report = 0;
+
+    DBG1(DBG_PRE_MAIN, 0, 0);
+
     while(1) {
+        // DBG1(0x02, 0, 0);
         // keep the watchdog happy
         wdt_reset(); 
+        encPoll();
         usbPoll();
+
+        btn_state = encGetButtonState();
+        enc_state = encGetState();
+
+        if (btn_state != last_btn_state) {
+            DBG1(DBG_BTN_STATE, (uchar *)&btn_state, 1);
+            
+            if (btn_state) {
+                // Pressed
+                buildReport(settingsGetKeycode(REGISTER_BTN), settingsGetModifiers(REGISTER_BTN));
+            } else {
+                // Released
+                buildReport(0x00, 0x00);
+            }
+
+            last_btn_state = btn_state;
+            send_report = 1;
+        } else if (enc_state != last_enc_state) {
+            DBG1(DBG_ENC_STATE, (uchar *)&enc_state, 1);
+
+            if (enc_state == SPIN_CW) {
+                buildReport(settingsGetKeycode(REGISTER_CW), settingsGetModifiers(REGISTER_CW));
+            } else if (enc_state == SPIN_CCW) {
+                buildReport(settingsGetKeycode(REGISTER_CCW), settingsGetModifiers(REGISTER_CCW));
+            } else {
+                // No spin
+                buildReport(0x00, 0x00);
+            }
+
+            last_enc_state = enc_state;
+            send_report = 1;
+        }
+
+        if (usbInterruptIsReady() && send_report) {
+            // Send
+            DBG1(DBG_SEND_IRQ, (uchar *)&keyboard_report, sizeof(keyboard_report));
+            usbSetInterrupt((uchar *)&keyboard_report, sizeof(keyboard_report));
+            send_report = 0;
+        }
     }
     
     return 0;

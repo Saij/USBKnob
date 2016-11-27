@@ -3,7 +3,7 @@ CC = avr-gcc
 OBJCOPY = avr-objcopy
 DUDE = avrdude
 
-CFLAGS = -Wall -Os -Iusbdrv -I. -mmcu=atmega328p -DF_CPU=16000000
+CFLAGS = -Wall -Os -Iusbdrv -I. -mmcu=atmega328p -DF_CPU=16000000 -DDEBUG_LEVEL=0
 OBJFLAGS = -j .text -j .data -O ihex
 DUDEFLAGS = -p atmega328p -c arduino -P COM7 -b 57600 -v
 

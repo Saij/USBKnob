@@ -7,7 +7,7 @@
 #define EEPROM_SIZE_ATMEGA328 1024  
 
 #define MAGIC_CODE  0x554B
-#define VERSION     0x0001
+#define VERSION     0x0002
 
 #define MASK_KEY      0x00FF
 #define MASK_MOD      0xFF00
@@ -21,7 +21,7 @@ uint16_t settings[NUM_REGISTERS] = {
   VERSION,
   0x0056, // CCW, no modifiers, Keypad -
   0x0057, // CW, no modifiers, Keypad +
-  0x0067, // BTN, no modifiers, Keypad =
+  0x0055, // BTN, no modifiers, Keypad =
 };
 
 uint16_t _settingsFindNextWriteIndex() { 
